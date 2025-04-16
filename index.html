@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Royal Events - Premium Event Equipment</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="main-container">
+      <nav class="main-nav">
+        <h1 class="brand-title">Royal Events</h1>
+        <div class="nav-links">
+          <a href="#equipment" class="nav-link">Equipment</a>
+          <a href="#services" class="nav-link">Services</a>
+          <a href="#contact" class="nav-link">Contact</a>
+          <button class="book-now-btn">Book Now</button>
+        </div>
+      </nav>
+      <section class="hero-section">
+        <img
+          src="https://images.pexels.com/photos/19351563/pexels-photo-19351563.jpeg"
+          class="hero-image"
+          alt="Luxury event setup"
+        />
+        <div class="hero-content">
+          <h2 class="hero-title">Elevate Your Celebrations</h2>
+          <p class="hero-description">
+            Luxury Sound Systems • Premium Furniture • Professional Lighting
+            Complete Event Equipment Solutions
+          </p>
+          <div class="hero-buttons">
+            <button class="primary-btn view-equipment-btn">
+              View Equipment
+            </button>
+            <button class="secondary-btn quote-btn">Get Quote</button>
+          </div>
+        </div>
+      </section>
+      <section id="equipment" class="equipment-section">
+        <h3 class="section-title">Our Equipment</h3>
+        <div class="category-grid">
+          <article class="category-card" data-category="sound-systems">
+            <img
+              src="https://images.pexels.com/photos/2235/music-sound-communication-audio.jpg"
+              class="category-image"
+              alt="Sound Systems"
+            />
+            <div class="category-content">
+              <h4 class="category-title">Sound Systems</h4>
+              <button class="shop-btn">Shop Now</button>
+            </div>
+          </article>
+          <article class="category-card" data-category="lighting">
+            <img
+              src="https://images.pexels.com/photos/2897776/pexels-photo-2897776.jpeg"
+              class="category-image"
+              alt="Lighting"
+            />
+            <div class="category-content">
+              <h4 class="category-title">Lighting</h4>
+              <button class="shop-btn">Shop Now</button>
+            </div>
+          </article>
+          <article class="category-card" data-category="furniture">
+            <img
+              src="https://images.pexels.com/photos/67468/pexels-photo-67468.jpeg"
+              class="category-image"
+              alt="Furniture"
+            />
+            <div class="category-content">
+              <h4 class="category-title">Furniture</h4>
+              <button class="shop-btn">Shop Now</button>
+            </div>
+          </article>
+        </div>
+      </section>
+      <section id="products" class="products-section" style="display: none">
+        <h2 class="products-title"></h2>
+        <div class="products-grid">
+          <!-- Products will be dynamically inserted here -->
+        </div>
+      </section>
+      <section id="contact" class="cta-section">
+        <h3 class="cta-title">Ready to Create Your Perfect Event?</h3>
+        <p class="cta-description">
+          Contact us for personalized service and expert advice
+        </p>
+        <button class="contact-btn">Get in Touch</button>
+      </section>
+    </header>
+    <script src="script.js"></script>
+  </body>
+</html>

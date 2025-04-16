@@ -1,0 +1,269 @@
+<?php
+require_once 'db_connection.php';
+
+/**
+ * Get all equipment categories from the database
+ * No limit is applied - all active categories will be returned
+ *
+ * @return array Array of category objects
+ */
+function getCategories() {
+    global $conn;
+    $categories = [];
+
+    // This query fetches ALL active categories without any LIMIT clause
+    $sql = "SELECT id, title, slug, image_url FROM categories WHERE active = 1 ORDER BY display_order";
+    $result = $conn->query($sql);
+
+    if ($result && $result->num_rows > 0) {
+        while($row = $result->fetch_assoc()) {
+            $categories[] = [
+                'id' => $row['id'],
+                'title' => $row['title'],
+                'slug' => $row['slug'],
+                'image' => $row['image_url']
+            ];
+        }
+    }
+
+    return $categories;
+}
+
+/**
+ * Get products by category slug
+ * No limit is applied - all active products in the category will be returned
+ *
+ * @param string $categorySlug The category slug
+ * @return array Array of product objects
+ */
+function getProductsByCategory($categorySlug) {
+    global $conn;
+    $products = [];
+
+    // This query fetches ALL active products in the category without any LIMIT clause
+    $sql = "SELECT p.id, p.name, p.price, p.image_url
+            FROM products p
+            JOIN categories c ON p.category_id = c.id
+            WHERE c.slug = ? AND p.active = 1
+            ORDER BY p.display_order";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $categorySlug);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result && $result->num_rows > 0) {
+        while($row = $result->fetch_assoc()) {
+            $products[] = [
+                'id' => $row['id'],
+                'name' => $row['name'],
+                'price' => $row['price'],
+                'image' => $row['image_url']
+            ];
+        }
+    }
+
+    $stmt->close();
+    return $products;
+}
+
+/**
+ * Get all products grouped by category
+ *
+ * @return array Associative array with category slugs as keys and product arrays as values
+ */
+function getAllProductsByCategory() {
+    global $conn;
+    $productsByCategory = [];
+
+    $categories = getCategories();
+
+    foreach ($categories as $category) {
+        $productsByCategory[$category['slug']] = getProductsByCategory($category['slug']);
+    }
+
+    return $productsByCategory;
+}
+
+/**
+ * Generate a unique booking reference
+ *
+ * @return string Booking reference in format RE-YYYYMMDD-XXXX
+ */
+function generateBookingReference() {
+    global $conn;
+
+    // Format: RE-YYYYMMDD-XXXX where XXXX is a random number
+    $date = date('Ymd');
+    $random = mt_rand(1000, 9999);
+    $reference = "RE-{$date}-{$random}";
+
+    // Check if reference already exists
+    $sql = "SELECT COUNT(*) as count FROM bookings WHERE booking_reference = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $reference);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+
+    // If reference exists, generate a new one recursively
+    if ($row['count'] > 0) {
+        return generateBookingReference();
+    }
+
+    return $reference;
+}
+
+/**
+ * Save booking to database
+ *
+ * @param array $bookingData Booking information
+ * @param array $cartItems Cart items
+ * @return array|bool Booking information with ID and reference if successful, false otherwise
+ */
+function saveBooking($bookingData, $cartItems) {
+    global $conn;
+
+    // Start transaction
+    $conn->begin_transaction();
+
+    try {
+        // Generate booking reference
+        $bookingReference = generateBookingReference();
+
+        // Insert booking
+        $sql = "INSERT INTO bookings (
+                    booking_reference,
+                    fullname,
+                    phone,
+                    event_date,
+                    event_type,
+                    location,
+                    notes,
+                    total_amount,
+                    status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param(
+            "sssssssd",
+            $bookingReference,
+            $bookingData['fullname'],
+            $bookingData['phone'],
+            $bookingData['event_date'],
+            $bookingData['event_type'],
+            $bookingData['location'],
+            $bookingData['notes'],
+            $bookingData['total_amount']
+        );
+
+        $stmt->execute();
+        $bookingId = $conn->insert_id;
+
+        // Insert booking items
+        foreach ($cartItems as $item) {
+            $subtotal = $item['price'] * $item['quantity'];
+
+            $sql = "INSERT INTO booking_items (
+                        booking_id,
+                        product_id,
+                        quantity,
+                        price,
+                        subtotal
+                    ) VALUES (?, ?, ?, ?, ?)";
+
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param(
+                "iidd",
+                $bookingId,
+                $item['id'],
+                $item['quantity'],
+                $item['price'],
+                $subtotal
+            );
+
+            $stmt->execute();
+        }
+
+        // Commit transaction
+        $conn->commit();
+
+        return [
+            'id' => $bookingId,
+            'reference' => $bookingReference,
+            'status' => 'pending'
+        ];
+    } catch (Exception $e) {
+        // Rollback transaction on error
+        $conn->rollback();
+        return false;
+    }
+}
+
+/**
+ * Get booking by ID
+ *
+ * @param int $bookingId Booking ID
+ * @return array|bool Booking information if found, false otherwise
+ */
+function getBookingById($bookingId) {
+    global $conn;
+
+    // Get booking information
+    $sql = "SELECT * FROM bookings WHERE id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $bookingId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows === 0) {
+        return false;
+    }
+
+    $booking = $result->fetch_assoc();
+
+    // Get booking items
+    $sql = "SELECT bi.*, p.name, p.image_url
+            FROM booking_items bi
+            JOIN products p ON bi.product_id = p.id
+            WHERE bi.booking_id = ?";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $bookingId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $items = [];
+    while ($row = $result->fetch_assoc()) {
+        $items[] = $row;
+    }
+
+    $booking['items'] = $items;
+
+    return $booking;
+}
+
+/**
+ * Get booking by reference
+ *
+ * @param string $reference Booking reference
+ * @return array|bool Booking information if found, false otherwise
+ */
+function getBookingByReference($reference) {
+    global $conn;
+
+    // Get booking ID
+    $sql = "SELECT id FROM bookings WHERE booking_reference = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $reference);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows === 0) {
+        return false;
+    }
+
+    $row = $result->fetch_assoc();
+    return getBookingById($row['id']);
+}
+?>

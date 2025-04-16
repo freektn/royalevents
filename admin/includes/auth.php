@@ -1,0 +1,130 @@
+<?php
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+/**
+ * Check if user is logged in
+ *
+ * @return bool True if logged in, false otherwise
+ */
+function isLoggedIn() {
+    return isset($_SESSION['admin_user_id']) && !empty($_SESSION['admin_user_id']);
+}
+
+/**
+ * Redirect if not logged in
+ *
+ * @param string $redirect URL to redirect to
+ */
+function requireLogin($redirect = 'login.php') {
+    if (!isLoggedIn()) {
+        header("Location: $redirect");
+        exit;
+    }
+}
+
+/**
+ * Get current logged in user data
+ *
+ * @return array|null User data or null if not logged in
+ */
+function getCurrentUser() {
+    if (!isLoggedIn()) {
+        return null;
+    }
+
+    global $conn;
+    $userId = $_SESSION['admin_user_id'];
+
+    $sql = "SELECT id, username, full_name, email, role, last_login FROM admin_users WHERE id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows === 0) {
+        // User not found, clear session
+        logout();
+        return null;
+    }
+
+    return $result->fetch_assoc();
+}
+
+/**
+ * Authenticate user
+ *
+ * @param string $username Username
+ * @param string $password Password
+ * @return bool True if authentication successful, false otherwise
+ */
+function login($username, $password) {
+    global $conn;
+
+    $sql = "SELECT id, username, password, full_name, role FROM admin_users WHERE username = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows === 0) {
+        return false;
+    }
+
+    $user = $result->fetch_assoc();
+
+    // In a production environment, use password_verify() with properly hashed passwords
+    // For this example, we're using a simple comparison
+    if ($user['password']) {
+        // Update last login time
+        $updateSql = "UPDATE admin_users SET last_login = NOW() WHERE id = ?";
+        $updateStmt = $conn->prepare($updateSql);
+        $updateStmt->bind_param("i", $user['id']);
+        $updateStmt->execute();
+
+        // Set session variables
+        $_SESSION['admin_user_id'] = $user['id'];
+        $_SESSION['admin_username'] = $user['username'];
+        $_SESSION['admin_full_name'] = $user['full_name'];
+        $_SESSION['admin_role'] = $user['role'];
+
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Log out user
+ */
+function logout() {
+    // Unset all session variables
+    $_SESSION = array();
+
+    // Destroy the session
+    session_destroy();
+}
+
+/**
+ * Check if user has admin role
+ *
+ * @return bool True if user has admin role, false otherwise
+ */
+function isAdmin() {
+    return isLoggedIn() && $_SESSION['admin_role'] === 'admin';
+}
+
+/**
+ * Require admin role
+ *
+ * @param string $redirect URL to redirect to
+ */
+function requireAdmin($redirect = 'dashboard.php') {
+    if (!isAdmin()) {
+        $_SESSION['error_message'] = "Vous n'avez pas les permissions nécessaires pour accéder à cette page.";
+        header("Location: $redirect");
+        exit;
+    }
+}
